@@ -102,8 +102,22 @@ find "$APPDIR" -name "*.dll.lib" -delete
 find "$APPDIR" -type f -name "LICENSE*" -delete
 find "$APPDIR" -type f -name "README*" -delete
 
-# Create AppRun
-ln -sf usr/bin/studio "$APPDIR/AppRun"
+# Remove bundled font libraries if present (Forces use of system fonts to fix spacing issues)
+find "$APPDIR" -name "libfreetype*" -delete
+find "$APPDIR" -name "libfontconfig*" -delete
+find "$APPDIR" -name "libharfbuzz*" -delete
+
+# Create AppRun (Wrapper script instead of symlink)
+# This ensures arguments (URL handlers) are passed correctly and environment is sane.
+cat > "$APPDIR/AppRun" << 'EOFAPP'
+#!/bin/bash
+HERE="$(dirname "$(readlink -f "${0}")")"
+export APPDIR="${HERE}"
+export PATH="${HERE}/usr/bin:${PATH}"
+export LD_LIBRARY_PATH="${HERE}/usr/lib:${LD_LIBRARY_PATH}"
+exec "${HERE}/usr/bin/studio" "$@"
+EOFAPP
+chmod +x "$APPDIR/AppRun"
 
 # Copy icon
 mkdir -p "$APPDIR/usr/share/icons/hicolor/256x256/apps/"
@@ -120,6 +134,8 @@ Name=Studio
 Exec=studio %U
 Icon=studio
 Type=Application
+Terminal=false
+StartupWMClass=Studio
 Categories=Development;
 MimeType=x-scheme-handler/wpcom-local-dev;
 Version=1.0
@@ -139,7 +155,7 @@ export APPIMAGE_COMPRESS_LEVEL="9"
 # Use Update Information
 export UPDATE_INFORMATION="github-releases-with-tag-based-channels:yasershahi/studio-appimage"
 
-ARCH=x86_64 ./appimagetool-x86_64.AppImage --comp xz "$APPDIR" "Studio-$VERSION-x86_64.AppImage"
+ARCH=x86_64 ./appimagetool-x86_64.AppImage --u --comp xz "$APPDIR" "Studio-$VERSION-x86_64.AppImage"
 
 echo "=== Build Complete ==="
 echo "AppImage created at: $WORK_DIR/Studio-$VERSION-x86_64.AppImage"
