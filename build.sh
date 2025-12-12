@@ -10,41 +10,91 @@ fi
 
 # Configuration
 WORK_DIR="$(pwd)/workspace"
+DOWNLOAD_CACHE="$(pwd)/cache"
 APPDIR="$WORK_DIR/AppDir"
 NODE_VERSION="22.12.0"
 SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 
-echo "=== Preparing workspace ==="
-rm -rf "$WORK_DIR"
+# Ensure directories exist
 mkdir -p "$WORK_DIR"
+mkdir -p "$DOWNLOAD_CACHE"
 mkdir -p "$APPDIR"/{usr/{bin,lib},opt/studio}
 
-echo "=== Downloading Studio $VERSION ==="
-cd "$WORK_DIR"
-curl -L "https://github.com/Automattic/studio/archive/refs/tags/$VERSION.tar.gz" | tar xz
-mv studio-* studio-src
+echo "=== Preparing Environment ==="
 
-echo "=== Setting up Node.js ==="
-curl -L "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.xz" | tar xJ
-mv node-v${NODE_VERSION}-linux-x64 node
+# Setup Node.js
+if [ ! -d "$WORK_DIR/node" ]; then
+    echo "Setting up Node.js..."
+    if [ ! -f "$DOWNLOAD_CACHE/node-v${NODE_VERSION}-linux-x64.tar.xz" ]; then
+        curl -L "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.xz" -o "$DOWNLOAD_CACHE/node-v${NODE_VERSION}-linux-x64.tar.xz"
+    fi
+    tar xJf "$DOWNLOAD_CACHE/node-v${NODE_VERSION}-linux-x64.tar.xz" -C "$WORK_DIR"
+    mv "$WORK_DIR/node-v${NODE_VERSION}-linux-x64" "$WORK_DIR/node"
+fi
+export PATH="$WORK_DIR/node/bin:$PATH"
+
+# Setup Studio Source
+echo "=== Getting Studio Source ==="
+cd "$WORK_DIR"
+if [ ! -d "studio-src" ]; then
+    if [ ! -f "$DOWNLOAD_CACHE/studio-$VERSION.tar.gz" ]; then
+        echo "Downloading Studio $VERSION..."
+        curl -L "https://github.com/Automattic/studio/archive/refs/tags/$VERSION.tar.gz" -o "$DOWNLOAD_CACHE/studio-$VERSION.tar.gz"
+    fi
+    tar xzf "$DOWNLOAD_CACHE/studio-$VERSION.tar.gz"
+    mv studio-* studio-src
+fi
 
 echo "=== Building Studio ==="
 cd studio-src
-export PATH="$WORK_DIR/node/bin:$PATH"
-npm ci
-npm run make package
-npm prune --production # Remove development dependencies
 
-# Debug: List output directory
-echo "=== Checking build output ==="
-ls -la out/Studio-linux-x64/
+# Install Dependencies
+if [ ! -d "node_modules" ]; then
+    echo "Installing dependencies..."
+    npm ci
+fi
+
+# Build and Package
+# Using 'package' script which typically runs vite build + forge package
+if [ ! -d "out/Studio-linux-x64" ]; then
+    echo "Packaging application..."
+    npm run package
+fi
+
+# Critical Optimization: Prune IN PLACE
+PACKAGE_ROOT="out/Studio-linux-x64/resources/app"
+if [ -d "$PACKAGE_ROOT" ]; then
+    echo "=== Optimizing Size (In-Place Pruning) ==="
+    pushd "$PACKAGE_ROOT" > /dev/null
+    
+    # Prune dev dependencies from the PACKAGED app
+    npm prune --production
+    
+    # Remove obvious clutter that npm prune might miss
+    echo "Removing unnecessary files..."
+    find . -type d -name "test" -exec rm -rf {} +
+    find . -type d -name "tests" -exec rm -rf {} +
+    find . -type d -name ".github" -exec rm -rf {} +
+    find . -type f -name "*.ts" -delete
+    find . -type f -name "*.map" -delete
+    find . -type f -name "*.md" -delete
+    
+    popd > /dev/null
+    
+    # Remove unused locales (Keep en-US*, en-GB* approximately)
+    if [ -d "out/Studio-linux-x64/locales" ]; then
+        echo "Cleaning locales..."
+        find "out/Studio-linux-x64/locales" -type f -name "*.pak" ! -name "en-US.pak" ! -name "en-GB.pak" -delete
+    fi
+fi
 
 echo "=== Creating AppDir structure ==="
-# Copy all binary files from the output directory
+# Clear previous content if any
+rm -rf "$APPDIR/usr/bin/"*
 cp -r out/Studio-linux-x64/* "$APPDIR/usr/bin/"
 chmod +x "$APPDIR/usr/bin/studio"
 
-# Remove unnecessary files
+# Remove unnecessary files from AppDir (Secondary cleanup)
 find "$APPDIR" -name "*.a" -delete
 find "$APPDIR" -name "*.la" -delete
 find "$APPDIR" -name "*.pdb" -delete
@@ -55,10 +105,13 @@ find "$APPDIR" -type f -name "README*" -delete
 # Create AppRun
 ln -sf usr/bin/studio "$APPDIR/AppRun"
 
-# Copy icon from our repo
+# Copy icon
 mkdir -p "$APPDIR/usr/share/icons/hicolor/256x256/apps/"
-cp "$SCRIPT_DIR/studio.png" "$APPDIR/studio.png"
-cp "$SCRIPT_DIR/studio.png" "$APPDIR/usr/share/icons/hicolor/256x256/apps/studio.png"
+# Check if icon exists in source or script dir
+if [ -f "$SCRIPT_DIR/studio.png" ]; then
+    cp "$SCRIPT_DIR/studio.png" "$APPDIR/studio.png"
+    cp "$SCRIPT_DIR/studio.png" "$APPDIR/usr/share/icons/hicolor/256x256/apps/studio.png"
+fi
 
 # Create desktop entry
 cat > "$APPDIR/studio.desktop" << EOF
@@ -76,15 +129,16 @@ EOF
 
 echo "=== Building AppImage ==="
 cd "$WORK_DIR"
-wget -q "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage"
-chmod +x appimagetool-x86_64.AppImage
+if [ ! -f "appimagetool-x86_64.AppImage" ]; then
+    wget -q "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage"
+    chmod +x appimagetool-x86_64.AppImage
+fi
 
-# Set update information for AppImage
-export UPDATE_INFORMATION="github-releases-with-tag-based-channels:yasershahi/studio-appimage"
-
-# Build compressed AppImage
 export APPIMAGE_COMPRESS_TYPE="xz"
 export APPIMAGE_COMPRESS_LEVEL="9"
+# Use Update Information
+export UPDATE_INFORMATION="github-releases-with-tag-based-channels:yasershahi/studio-appimage"
+
 ARCH=x86_64 ./appimagetool-x86_64.AppImage --comp xz "$APPDIR" "Studio-$VERSION-x86_64.AppImage"
 
 echo "=== Build Complete ==="
