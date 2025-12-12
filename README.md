@@ -1,4 +1,4 @@
-# WordPress Studio for Linux
+# WordPress.com Studio for Linux
 
 Unofficial AppImage packaging for [Studio by WordPress.com](https://github.com/Automattic/studio).
 
