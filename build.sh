@@ -61,32 +61,6 @@ if [ ! -d "out/Studio-linux-x64" ]; then
     npm run package
 fi
 
-# Critical Optimization: Prune IN PLACE
-PACKAGE_ROOT="out/Studio-linux-x64/resources/app"
-if [ -d "$PACKAGE_ROOT" ]; then
-    echo "=== Optimizing Size (In-Place Pruning) ==="
-    pushd "$PACKAGE_ROOT" > /dev/null
-    
-    # Prune dev dependencies from the PACKAGED app
-    npm prune --production
-    
-    # Remove obvious clutter that npm prune might miss
-    echo "Removing unnecessary files..."
-    find . -type d -name "test" -exec rm -rf {} +
-    find . -type d -name "tests" -exec rm -rf {} +
-    find . -type d -name ".github" -exec rm -rf {} +
-    find . -type f -name "*.ts" -delete
-    find . -type f -name "*.map" -delete
-    find . -type f -name "*.md" -delete
-    
-    popd > /dev/null
-    
-    # Remove unused locales (Keep en-US*, en-GB* approximately)
-    if [ -d "out/Studio-linux-x64/locales" ]; then
-        echo "Cleaning locales..."
-        find "out/Studio-linux-x64/locales" -type f -name "*.pak" ! -name "en-US.pak" ! -name "en-GB.pak" -delete
-    fi
-fi
 
 echo "=== Creating AppDir structure ==="
 # Clear previous content if any
@@ -155,7 +129,7 @@ export APPIMAGE_COMPRESS_LEVEL="9"
 # Use Update Information
 export UPDATE_INFORMATION="github-releases-with-tag-based-channels:yasershahi/studio-appimage"
 
-ARCH=x86_64 ./appimagetool-x86_64.AppImage --u --comp xz "$APPDIR" "Studio-$VERSION-x86_64.AppImage"
+ARCH=x86_64 ./appimagetool-x86_64.AppImage --comp xz "$APPDIR" "Studio-$VERSION-x86_64.AppImage"
 
 echo "=== Build Complete ==="
 echo "AppImage created at: $WORK_DIR/Studio-$VERSION-x86_64.AppImage"

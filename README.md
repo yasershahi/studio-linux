@@ -1,4 +1,4 @@
-# Studio AppImage Builder
+# WordPress Studio for Linux
 
 Unofficial AppImage packaging for [Studio by WordPress.com](https://github.com/Automattic/studio).
 
@@ -20,31 +20,6 @@ sudo dnf install fuse
 # Arch Linux
 sudo pacman -S fuse2
 ```
-
-## Building Locally
-
-If you want to build the AppImage yourself:
-
-```bash
-# Clone this repository
-git clone https://github.com/yasershahi/studio-appimage.git
-cd studio-appimage
-
-# Make build script executable
-chmod +x build.sh
-
-# Build specific version
-./build.sh v1.5.2  # Replace with desired version
-```
-
-The AppImage will be created in `workspace/Studio-v1.5.2-x86_64.AppImage`.
-
-## Features
-
-- Standalone application - no installation required
-- Includes all dependencies
-- Auto-updates via GitHub releases
-- XZ compressed for smaller file size
 
 ## Disclaimer
 
