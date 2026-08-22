@@ -1,10 +1,12 @@
+
+
 # WordPress.com Studio for Linux
 
 Unofficial AppImage packaging for [Studio by WordPress.com](https://github.com/Automattic/studio).
 
 ## Quick Install
 
-You can download the latest AppImage from the [releases page](https://github.com/yasershahi/studio-appimage/releases) and just run it!.
+You can download the latest AppImage from the [releases page](https://github.com/yasershahi/studio-appimage/releases), make it executable with `chmod +x Studio-*.AppImage`, and run it.
 
 Alternatively, you can use [Gear Lever](https://flathub.org/apps/com.rafaelmardojai.GearLever), a Flatpak application for managing AppImages.
 
